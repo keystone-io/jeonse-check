@@ -116,3 +116,12 @@ def test_parse_bld_json_variants():
     assert _parse_bld(one) == [{"bldNm": "A"}]
     empty = '{"response":{"header":{"resultCode":"00"},"body":{"items":"","totalCount":"0"}}}'
     assert _parse_bld(empty) == []
+
+
+def test_api_failure_is_not_reported_as_no_trades():
+    r = diagnose(target(), [], RENTS, TITLES, [], [], today=TODAY, failed=frozenset({"trade"}))
+    assert "받지 못했어요" in get(r, "ratio")["summary"]
+    assert "받지 못했어요" in get(r, "trend")["summary"]
+    assert "받지 못했어요" not in get(r, "market")["summary"]  # 전월세는 정상
+    r2 = diagnose(target(), [], RENTS, TITLES, [], [], today=TODAY)
+    assert "매매 거래가 없어요" in get(r2, "ratio")["summary"]

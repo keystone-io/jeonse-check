@@ -1,0 +1,86 @@
+name: Build & Deploy
+
+# main 브랜치에 push 하면: 테스트 + Docker 빌드 검사 → (설정 시) EC2 에 SSH 접속해 deploy/deploy.sh 실행
+# Actions 탭에서 수동 실행(Run workflow)도 가능
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 배포가 동시에 두 번 돌지 않도록
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test & Docker build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          pip install -q -r requirements-dev.txt
+          python -m pytest -q
+
+      - name: Validate docker-compose.yml
+        run: |
+          touch backend/.env   # CI 에는 키가 없으므로 빈 파일로 문법만 검사
+          docker compose config --quiet
+
+      - name: Build backend image
+        run: docker build -t jeonse-check-backend ./backend
+      - name: Build frontend image
+        run: docker build -t jeonse-check-frontend ./frontend
+
+      - name: Smoke test (containers start, /api/health 응답, 키가 이미지에 없는지)
+        run: |
+          docker compose up -d
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost/api/health && break
+            sleep 2
+          done
+          curl -fsS http://localhost/ | grep -q '<div id="root">'
+          curl -fsS http://localhost/report?x=1 | grep -q '<div id="root">'   # SPA 새로고침 경로
+          if docker run --rm --entrypoint sh jeonse-check-backend -c 'ls -a /app' | grep -q '\.env'; then
+            echo "::error::backend 이미지 안에 .env 파일이 있습니다"; exit 1
+          fi
+          docker compose down -v
+
+  deploy:
+    name: Deploy
+    needs: build
+    # 저장소 Variables 에 DEPLOY_ENABLED=true 를 설정해야 배포가 실행됨
+    # (EC2 준비 전에는 빌드 검사만 수행)
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run deploy script on EC2
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=30 "$USER@$HOST" \
+            'bash ~/jeonse-check/deploy/deploy.sh'
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

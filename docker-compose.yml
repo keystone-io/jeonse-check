@@ -1,0 +1,42 @@
+services:
+  backend:
+    build: ./backend
+    image: jeonse-check-backend
+    env_file:
+      - path: ./backend/.env
+        required: true
+    expose:
+      - "8000"
+    volumes:
+      # 실거래가 캐시 — 재배포해도 유지 (같은 지역 재조회가 빨라짐)
+      - cache-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # 배포 스크립트가 frontend/.env 를 읽어 넘겨준다 (없으면 지도만 숨김)
+        VITE_KAKAO_JS_KEY: ${VITE_KAKAO_JS_KEY:-}
+    image: jeonse-check-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  cache-data:

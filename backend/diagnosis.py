@@ -277,12 +277,18 @@ def latest_house_price(prices: list[dict]) -> float | None:
 # ---------------------------------------------------------------- 항목별 판단
 
 
+API_FAIL_SUMMARY = "실거래 데이터를 받지 못했어요"
+API_FAIL_DETAIL = "공공데이터포털 실거래가 API 응답 오류로 이번에는 판단하지 못했어요. 잠시 후 다시 진단해 보세요."
+
+
 def check(id_, title, status, value, summary, detail, basis="") -> dict:
     return {"id": id_, "title": title, "status": status, "value": value, "summary": summary, "detail": detail, "basis": basis}
 
 
-def check_ratio(t: Target, sale: dict | None) -> dict:
+def check_ratio(t: Target, sale: dict | None, api_failed: bool = False) -> dict:
     title = "전세가율"
+    if not sale and api_failed:
+        return check("ratio", title, "unknown", "판단 불가", API_FAIL_SUMMARY, API_FAIL_DETAIL)
     if not sale:
         return check(
             "ratio", title, "unknown", "판단 불가", "비교할 매매 거래가 없어요",
@@ -310,8 +316,10 @@ def check_ratio(t: Target, sale: dict | None) -> dict:
     return check("ratio", title, status, f"{ratio:.0f}%", summary, detail, f"{sale['basis']} · 신뢰도 {sale['confidence']}")
 
 
-def check_market(t: Target, jeonse: dict | None) -> dict:
+def check_market(t: Target, jeonse: dict | None, api_failed: bool = False) -> dict:
     title = "주변 전세 시세 비교"
+    if not jeonse and api_failed:
+        return check("market", title, "unknown", "판단 불가", API_FAIL_SUMMARY, API_FAIL_DETAIL)
     if not jeonse:
         return check(
             "market", title, "unknown", "판단 불가", "비교할 전세 거래가 없어요",
@@ -398,8 +406,10 @@ def check_building(t: Target, b: dict | None) -> dict:
     return check("building", title, "caution", purposes, "주택 용도인지 확인이 필요해요", f"주용도: {purposes}{age}.", "건축물대장 표제부")
 
 
-def check_trend(tr: dict | None) -> dict:
+def check_trend(tr: dict | None, api_failed: bool = False) -> dict:
     title = "매매가 추이"
+    if not tr and api_failed:
+        return check("trend", title, "unknown", "판단 불가", API_FAIL_SUMMARY, API_FAIL_DETAIL)
     if not tr:
         return check("trend", title, "unknown", "판단 불가", "추이를 볼 거래가 부족해요", "최근 2년간 비교할 매매 거래가 충분하지 않아요.")
     c = tr["change_pct"]
@@ -450,7 +460,9 @@ def diagnose(
     recaps: list[dict],
     prices: list[dict],
     today: date | None = None,
+    failed: frozenset[str] = frozenset(),
 ) -> dict:
+    """failed: API 호출이 통째로 실패한 데이터 종류 {'trade', 'rent'} — '거래 없음'과 구분해 안내한다."""
     today = today or date.today()
     jeonse_recs = [r for r in rents if not r.get("monthly")]
 
@@ -478,11 +490,11 @@ def diagnose(
         official_source = "건축물대장 주택가격"
 
     checks = [
-        check_ratio(t, sale),
-        check_market(t, jeonse),
+        check_ratio(t, sale, "trade" in failed),
+        check_market(t, jeonse, "rent" in failed),
         check_guarantee(t, official, official_source),
         check_building(t, building),
-        check_trend(tr),
+        check_trend(tr, "trade" in failed),
     ]
     names = [r["name"] for r in same_recs if r.get("name")]
     return {

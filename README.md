@@ -41,3 +41,16 @@ npm run dev     # 백엔드(8000) + 프론트(5173) 동시 실행 → http://loc
 npm test        # 백엔드 테스트
 npm run build   # 프론트 빌드
 ```
+
+## Docker (운영)
+
+```bash
+# backend/.env (필수), frontend/.env (지도용, 선택) 를 준비한 뒤
+export VITE_KAKAO_JS_KEY=$(grep ^VITE_KAKAO_JS_KEY= frontend/.env | cut -d= -f2-)
+docker compose up -d --build     # http://localhost  (nginx → /api 는 backend 로 프록시)
+```
+
+- 키는 이미지에 들어가지 않습니다 (`.dockerignore` 에서 `.env` 제외, 실행 시 `env_file` 로 주입).
+- 실거래가 캐시는 `cache-data` 볼륨에 저장되어 재배포해도 유지됩니다.
+- `main` 브랜치에 push 하면 GitHub Actions 가 테스트 + 이미지 빌드 + 컨테이너 기동 검사를 합니다.
+  저장소 Variables 에 `DEPLOY_ENABLED=true` 와 Secrets(`EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`)를 설정하면 EC2 자동 배포까지 진행합니다.

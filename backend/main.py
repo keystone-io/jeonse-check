@@ -131,7 +131,8 @@ async def diagnose_api(request: Request, body: DiagnoseIn):
         official_price=body.official_price,
         building_name=body.building_name,
     )
-    result = diagnose(target, trades, rents, titles or [], recaps or [], prices or [])
+    failed = frozenset(k for k, res in (("trade", trade_res), ("rent", rent_res)) if res is None)
+    result = diagnose(target, trades, rents, titles or [], recaps or [], prices or [], failed=failed)
     result["house_type"] = {"code": body.house_type, "label": HOUSE_TYPES[body.house_type]["label"]}
     result["months"] = MONTHS
     result["warnings"] = warnings
