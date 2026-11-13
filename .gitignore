@@ -1,0 +1,28 @@
+# 비밀값
+.env
+.env.*
+!.env.example
+*.pem
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/
+
+# Node
+node_modules/
+dist/
+
+# 기타
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+
+# 캐시·테스트 산출물
+*.sqlite3
+
+# 개인 작업 지시서 (AWS 계정 메모 포함 — 공개 저장소 제외)
+PROJECT_PLAYBOOK.md
