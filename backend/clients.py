@@ -22,7 +22,8 @@ BLD_BASE = "https://apis.data.go.kr/1613000/BldRgstHubService"
 # 주택 유형별 실거래가 서비스 이름과 단지(건물)명 필드
 HOUSE_TYPES = {
     "apt": {"label": "아파트", "trade": "RTMSDataSvcAptTrade", "rent": "RTMSDataSvcAptRent", "name": "aptNm"},
-    "rh": {"label": "연립·다세대(빌라)", "trade": "RTMSDataSvcRHTrade", "rent": "RTMSDataSvcRHRent", "name": "mhouseNm"},
+    # 연립다세대 매매는 신규 서비스(…Trade2)로 바뀜 — 구 RTMSDataSvcRHTrade 는 신규 활용신청 키로 403
+    "rh": {"label": "연립·다세대(빌라)", "trade": "RTMSDataSvcRHTrade2", "rent": "RTMSDataSvcRHRent", "name": "mhouseNm"},
     "offi": {"label": "오피스텔", "trade": "RTMSDataSvcOffiTrade", "rent": "RTMSDataSvcOffiRent", "name": "offiNm"},
 }
 
